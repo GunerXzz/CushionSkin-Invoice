@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pink Invoice Maker</title>
+    <title>Invoice Maker</title>
     
     <!-- Tailwind CSS for Layout -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -16,8 +16,8 @@
 
     <style>
         body {
-            font-family: 'Battambang', cursive; /* Applied globally for the cute look */
-            background-color: #fdf2f8; /* Very light pink background */
+            font-family: 'Battambang', cursive; 
+            background-color: #fdf2f8; /* Light pink background */
         }
 
         /* The Invoice Paper - Fixed A4 Ratio Logic */
@@ -32,10 +32,10 @@
             color: #374151; /* Gray-700 text */
         }
 
-        /* Table Styling adjustments for the "Cute" look */
+        
         .cute-table th {
             font-weight: 700;
-            color: #be185d; /* Pink-700 */
+            color: #be185d; 
         }
         
         .cute-table th:first-child {
@@ -50,20 +50,20 @@
         /* Mobile Responsive Scaling for the Preview */
         .preview-container {
             overflow: auto;
-            border: 1px solid #fbcfe8; /* Pink-200 */
-            background: #fce7f3; /* Pink-100 */
+            border: 1px solid #fbcfe8; 
+            background: #fce7f3;
             padding: 10px;
         }
 
-        /* On mobile, we scale the invoice down using CSS transform so it fits on screen */
+        /* On mobile screen */
         @media (max-width: 800px) {
             #invoice-preview {
                 transform-origin: top left;
-                transform: scale(0.45); /* Scale down to fit mobile width */
-                margin-bottom: -150mm; /* Fix huge whitespace caused by scaling */
+                transform: scale(0.45); 
+                margin-bottom: -150mm; 
             }
             .preview-container {
-                height: 500px; /* Fixed height scrollable window for mobile */
+                height: 500px; 
                 overflow: hidden; 
             }
         }
@@ -97,7 +97,6 @@
                 <h3 class="font-bold text-sm text-pink-500 uppercase tracking-wider">My Shop</h3>
                 <input type="file" id="logo-upload" accept="image/*" class="block w-full text-sm text-pink-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100"/>
                 <input type="text" id="company-name" placeholder="Shop Name" class="w-full border-2 border-pink-100 p-2 rounded-lg focus:border-pink-400 outline-none" oninput="updatePreview()" value="My Shop">
-                <!-- Removed Khmer Name Input as requested -->
                 <input type="text" id="company-contact" placeholder="Address / Phone" class="w-full border-2 border-pink-100 p-2 rounded-lg focus:border-pink-400 outline-none" oninput="updatePreview()" value="Tel: 012 345 678 | Phnom Penh">
             </div>
 
