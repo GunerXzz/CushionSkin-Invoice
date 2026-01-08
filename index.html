@@ -1,419 +1,567 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice Maker</title>
-    
-    <!-- Tailwind CSS for Layout -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- HTML2Canvas for Image Generation -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice Maker</title>
 
-    <!-- Google Fonts: Battambang (Main) -->
-    <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700&display=swap" rel="stylesheet">
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-    <style>
-        body {
-            font-family: 'Battambang', cursive; 
-            background-color: #fdf2f8; /* Light pink background */
-        }
+  <!-- html2canvas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-        /* The Invoice Paper - Fixed A4 Ratio Logic */
-        #invoice-preview {
-            width: 210mm;
-            min-height: 297mm;
-            background: white;
-            padding: 15mm;
-            margin: 0 auto;
-            box-shadow: 0 10px 15px -3px rgba(236, 72, 153, 0.1), 0 4px 6px -2px rgba(236, 72, 153, 0.05); /* Pink shadow */
-            position: relative;
-            color: #374151; /* Gray-700 text */
-        }
+  <!-- Khmer-friendly font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700&display=swap" rel="stylesheet">
 
-        .cute-table th {
-            font-weight: 700;
-            color: #be185d; 
-        }
-        
-        .cute-table th:first-child {
-            border-top-left-radius: 10px;
-            border-bottom-left-radius: 10px;
-        }
-        .cute-table th:last-child {
-            border-top-right-radius: 10px;
-            border-bottom-right-radius: 10px;
-        }
+  <style>
+    body { font-family: "Battambang", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
 
-        /* Mobile Responsive Scaling for the Preview UI ONLY */
-        .preview-container {
-            overflow: auto;
-            border: 1px solid #fbcfe8; 
-            background: #fce7f3;
-            padding: 10px;
-        }
+    /* A4 in PX (stable for Safari/html2canvas) */
+    :root{
+      --a4w: 794px;
+      --a4h: 1123px;
+      --pad: 56px;
+    }
 
-        /* On mobile screen, we scale visually, but this won't affect the download anymore */
-        @media (max-width: 800px) {
-            #invoice-preview {
-                transform-origin: top left;
-                transform: scale(0.45); 
-                margin-bottom: -150mm; 
-            }
-            .preview-container {
-                height: 500px; 
-                overflow: hidden; 
-            }
-        }
-    </style>
+    .paper {
+      width: var(--a4w);
+      min-height: var(--a4h);
+      background: #fff;
+      padding: var(--pad);
+      position: relative;
+      transform: none !important;
+    }
+
+    /* Mobile preview scaling only */
+    @media (max-width: 900px) {
+      .paper.interactive {
+        transform-origin: top left;
+        transform: scale(0.50) !important;
+        margin-bottom: -520px;
+      }
+      .previewWrap {
+        height: 560px;
+        overflow: hidden;
+        border-radius: 16px;
+      }
+    }
+
+    /* Make logo rendering more stable on iOS */
+    #logoView {
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+  </style>
 </head>
-<body>
 
-    <!-- ================= LOGIN OVERLAY ================= -->
-    <div id="login-screen" class="fixed inset-0 bg-pink-50 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center border-2 border-pink-100">
-            <h2 class="text-2xl font-bold mb-2 text-pink-600">Welcome</h2>
-            <p class="text-pink-400 mb-6 text-sm">Please enter PIN to access.</p>
-            <input type="password" id="pin-input" placeholder="PIN" class="w-full border-2 border-pink-200 rounded-xl p-3 text-center text-xl mb-4 focus:border-pink-500 focus:outline-none text-pink-600" />
-            <button onclick="checkLogin()" class="w-full bg-pink-500 text-white font-bold py-3 rounded-xl hover:bg-pink-600 transition shadow-md">LOGIN</button>
-            <p id="error-msg" class="text-red-500 mt-2 text-sm hidden">Incorrect PIN</p>
-        </div>
+<body class="bg-rose-50">
+
+  <!-- LOGIN -->
+  <div id="login" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rose-50">
+    <div class="w-full max-w-sm rounded-2xl bg-white shadow-xl border border-rose-100 p-7 text-center">
+      <div class="mx-auto mb-3 h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 font-bold">
+        CS
+      </div>
+      <h1 class="text-2xl font-bold text-slate-800">Invoice Maker</h1>
+      <p class="mt-1 text-sm text-slate-500">Enter PIN to continue</p>
+
+      <input id="pin" type="password" placeholder="PIN"
+        class="mt-5 w-full rounded-xl border-2 border-rose-100 px-4 py-3 text-center text-xl outline-none focus:border-rose-400" />
+
+      <button onclick="checkLogin()"
+        class="mt-4 w-full rounded-xl bg-rose-600 py-3 font-bold text-white shadow hover:bg-rose-700">
+        Login
+      </button>
+
+      <p id="pinErr" class="mt-3 text-sm text-red-500 hidden">Wrong PIN</p>
+      <p class="mt-4 text-xs text-slate-400">Note: PIN is not secure if this is public</p>
     </div>
+  </div>
 
-    <!-- ================= MAIN APP ================= -->
-    <div id="app-content" class="hidden min-h-screen flex flex-col md:flex-row">
-        
-        <!-- LEFT: CONTROLS & INPUTS -->
-        <div class="w-full md:w-1/3 bg-white p-6 overflow-y-auto border-r border-pink-100 h-screen-dynamic">
-            <div class="mb-6 border-b border-pink-100 pb-4">
-                <h1 class="text-xl font-bold text-pink-600">Invoice Settings</h1>
-                <p class="text-xs text-pink-400">Customize your invoice below.</p>
-            </div>
+  <!-- APP -->
+  <div id="app" class="hidden min-h-screen flex flex-col lg:flex-row">
 
-            <!-- Company Info -->
-            <div class="space-y-3 mb-6">
-                <h3 class="font-bold text-sm text-pink-500 uppercase tracking-wider">My Shop</h3>
-                <input type="file" id="logo-upload" accept="image/*" class="block w-full text-sm text-pink-500 file:mr-4 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100"/>
-                <input type="text" id="company-name" placeholder="Shop Name" class="w-full border-2 border-pink-100 p-2 rounded-lg focus:border-pink-400 outline-none" oninput="updatePreview()" value="My Shop">
-                <input type="text" id="company-contact" placeholder="Address / Phone" class="w-full border-2 border-pink-100 p-2 rounded-lg focus:border-pink-400 outline-none" oninput="updatePreview()" value="Tel: 012 345 678 | Phnom Penh">
-            </div>
+    <!-- LEFT PANEL -->
+    <aside class="w-full lg:w-[380px] bg-white border-r border-rose-100 p-6 overflow-y-auto">
+      <div class="mb-6">
+        <h2 class="text-lg font-bold text-slate-800">Settings</h2>
+        <p class="text-xs text-slate-500">Clean modern invoice theme</p>
+      </div>
 
-            <!-- Invoice Info -->
-            <div class="space-y-3 mb-6">
-                <h3 class="font-bold text-sm text-pink-500 uppercase tracking-wider">Customer Info</h3>
-                <input type="text" id="customer-name" placeholder="Customer Name" class="w-full border-2 border-pink-100 p-2 rounded-lg focus:border-pink-400 outline-none" oninput="updatePreview()">
-                <input type="date" id="invoice-date" class="w-full border-2 border-pink-100 p-2 rounded-lg focus:border-pink-400 outline-none" oninput="updatePreview()">
-                <input type="text" id="invoice-no" placeholder="Invoice No." class="w-full border-2 border-pink-100 p-2 rounded-lg focus:border-pink-400 outline-none" oninput="updatePreview()" value="INV-001">
-            </div>
+      <div class="space-y-3 mb-6">
+        <h3 class="text-xs font-bold tracking-wider text-rose-700 uppercase">Shop</h3>
 
-            <!-- Add Items -->
-            <div class="bg-pink-50 p-4 rounded-xl border border-pink-200 mb-6">
-                <h3 class="font-bold text-sm text-pink-600 uppercase mb-3">Add Items</h3>
-                <div class="grid grid-cols-2 gap-2 mb-2">
-                    <input type="text" id="item-desc" placeholder="Description" class="col-span-2 border border-pink-200 p-2 rounded-lg focus:outline-none focus:border-pink-400">
-                    <input type="number" id="item-qty" placeholder="Qty" class="border border-pink-200 p-2 rounded-lg focus:outline-none focus:border-pink-400">
-                    <input type="number" id="item-price" placeholder="Price ($)" class="border border-pink-200 p-2 rounded-lg focus:outline-none focus:border-pink-400">
-                </div>
-                <button onclick="addItem()" class="w-full bg-pink-500 text-white font-bold py-2 rounded-lg hover:bg-pink-600 transition shadow-sm">+ Add Item</button>
-            </div>
+        <label class="block">
+          <span class="text-sm text-slate-600">Logo</span>
+          <input id="logoInput" type="file" accept="image/*"
+            class="mt-2 block w-full text-sm text-rose-600
+            file:mr-4 file:rounded-full file:border-0 file:bg-rose-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-rose-700 hover:file:bg-rose-100" />
+          <p class="mt-1 text-xs text-slate-400">We auto-fix logo for export (removes scratch/moire).</p>
+        </label>
 
-            <!-- Items List Management -->
-            <div class="mb-6">
-                <h3 class="font-bold text-sm text-gray-400 mb-2">Current Items</h3>
-                <div id="items-control-list" class="space-y-2">
-                    <p class="text-sm text-gray-400 italic">No items added yet.</p>
-                </div>
-            </div>
+        <input id="shopName" value="Cushion Skin" oninput="updatePreview()"
+          class="w-full rounded-xl border-2 border-rose-100 px-4 py-2.5 outline-none focus:border-rose-400"
+          placeholder="Shop name" />
 
-            <!-- Actions -->
-            <div class="pt-4 border-t border-pink-100">
-                <button onclick="downloadImage()" class="w-full bg-gray-800 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-gray-900 transition flex justify-center items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-pink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    Download Image
-                </button>
-                <p class="text-xs text-center text-gray-400 mt-2">By Sok Chanmony</p>
-            </div>
+        <input id="shopContact" value="Tel: 012 345 678 | Phnom Penh" oninput="updatePreview()"
+          class="w-full rounded-xl border-2 border-rose-100 px-4 py-2.5 outline-none focus:border-rose-400"
+          placeholder="Contact line" />
+      </div>
+
+      <div class="space-y-3 mb-6">
+        <h3 class="text-xs font-bold tracking-wider text-rose-700 uppercase">Customer</h3>
+
+        <input id="customer" oninput="updatePreview()"
+          class="w-full rounded-xl border-2 border-rose-100 px-4 py-2.5 outline-none focus:border-rose-400"
+          placeholder="Customer name (e.g. Mony 012345678)" />
+
+        <input id="invDate" type="date" oninput="updatePreview()"
+          class="w-full rounded-xl border-2 border-rose-100 px-4 py-2.5 outline-none focus:border-rose-400" />
+
+        <input id="invNo" value="INV-001" oninput="updatePreview()"
+          class="w-full rounded-xl border-2 border-rose-100 px-4 py-2.5 outline-none focus:border-rose-400"
+          placeholder="Invoice number" />
+      </div>
+
+      <div class="rounded-2xl border border-rose-100 bg-rose-50 p-4 mb-6">
+        <h3 class="text-xs font-bold tracking-wider text-rose-700 uppercase mb-3">Items</h3>
+
+        <input id="itemDesc"
+          class="w-full rounded-xl border border-rose-200 px-4 py-2.5 outline-none focus:border-rose-400 mb-2"
+          placeholder="Description" />
+
+        <div class="grid grid-cols-2 gap-2">
+          <input id="itemQty" type="number" inputmode="decimal"
+            class="rounded-xl border border-rose-200 px-4 py-2.5 outline-none focus:border-rose-400"
+            placeholder="Qty" />
+
+          <input id="itemPrice" type="number" inputmode="decimal"
+            class="rounded-xl border border-rose-200 px-4 py-2.5 outline-none focus:border-rose-400"
+            placeholder="Price ($)" />
         </div>
 
-        <!-- RIGHT: PREVIEW AREA -->
-        <div class="w-full md:w-2/3 bg-pink-100 flex justify-center p-4 md:p-10 overflow-y-auto">
-            
-            <div class="preview-container rounded-xl shadow-2xl">
-                <!-- THE ACTUAL INVOICE PAPER (Target for html2canvas) -->
-                <div id="invoice-preview" class="leading-tight">
-                    
-                    <!-- Top Decoration Line -->
-                    <div class="absolute top-0 left-0 right-0 h-2 bg-pink-400"></div>
+        <button onclick="addItem()"
+          class="mt-3 w-full rounded-xl bg-rose-600 py-2.5 font-bold text-white shadow hover:bg-rose-700">
+          + Add item
+        </button>
+      </div>
 
-                    <!-- Header -->
-                    <div class="flex justify-between items-start mb-8 mt-4">
-                        <div class="flex flex-col">
-                            <!-- Logo Placeholder -->
-                            <img id="display-logo" src="" alt="Logo" class="h-24 w-auto object-contain mb-3 hidden" />
-                            
-                            <!-- Main Shop Name -->
-                            <h2 id="display-company-en" class="text-3xl font-bold text-pink-600 tracking-tight">SHOP NAME</h2>
-                            
-                            <!-- Contact Info -->
-                            <p id="display-contact" class="text-sm text-gray-500 mt-1 font-medium">Tel: 012 345 678</p>
-                        </div>
-                        <div class="text-right flex flex-col items-end">
-                            <div class="bg-pink-500 text-white rounded-full px-6 py-2 shadow-sm inline-block mb-1">
-                                <h1 class="text-3xl font-bold tracking-widest">INVOICE</h1>
-                            </div>
-                            <h2 class="text-lg text-pink-400 font-bold pr-2">វិក្កយបត្រ</h2>
-                        </div>
-                    </div>
-
-                    <!-- Divider -->
-                    <div class="w-full h-px bg-pink-100 mb-8"></div>
-
-                    <!-- Info Grid -->
-                    <div class="flex justify-between mb-8">
-                        <div class="bg-pink-50 p-4 rounded-lg border border-pink-100 w-1/2 mr-4">
-                            <p class="text-pink-400 text-xs font-bold uppercase mb-1">Bill To / អតិថិជន:</p>
-                            <h3 id="display-customer" class="text-xl font-bold text-gray-700 min-h-[1.5rem]">-</h3>
-                        </div>
-                        <div class="text-right flex flex-col justify-center">
-                            <div class="mb-2">
-                                <span class="text-pink-400 text-xs font-bold uppercase">Date / កាលបរិច្ឆេទ:</span>
-                                <span id="display-date" class="font-bold text-gray-600 ml-2">-</span>
-                            </div>
-                            <div>
-                                <span class="text-pink-400 text-xs font-bold uppercase">No / លេខ:</span>
-                                <span id="display-no" class="font-bold text-pink-600 ml-2 bg-pink-100 px-2 py-1 rounded">-</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Table -->
-                    <table class="w-full mb-8 border-separate border-spacing-y-2 cute-table">
-                        <thead>
-                            <tr class="bg-pink-100">
-                                <th class="py-3 px-3 text-left w-12 text-sm">#</th>
-                                <th class="py-3 px-3 text-left text-sm">
-                                    Description <br> <span class="font-normal text-xs text-pink-400">បរិយាយ</span>
-                                </th>
-                                <th class="py-3 px-3 text-center w-24 text-sm">
-                                    Qty <br> <span class="font-normal text-xs text-pink-400">ចំនួន</span>
-                                </th>
-                                <th class="py-3 px-3 text-right w-32 text-sm">
-                                    Price <br> <span class="font-normal text-xs text-pink-400">តម្លៃ</span>
-                                </th>
-                                <th class="py-3 px-3 text-right w-32 text-sm">
-                                    Total <br> <span class="font-normal text-xs text-pink-400">សរុប</span>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody id="invoice-items-body">
-                            <!-- Items will be injected here -->
-                            <tr>
-                                <td colspan="5" class="py-8 text-center text-pink-300 italic">No items...</td>
-                            </tr>
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan="3"></td>
-                                <td class="pt-4 text-right font-bold text-pink-400 uppercase pr-4 text-sm">Total / សរុប:</td>
-                                <td class="pt-4 text-right">
-                                    <div class="bg-pink-500 text-white font-bold text-xl py-2 px-4 rounded-lg shadow-sm inline-block" id="display-grand-total">
-                                        $0.00
-                                    </div>
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
-
-                    <!-- Footer -->
-                    <div class="absolute bottom-10 left-10 right-10 flex justify-between items-end">
-                        <div class="text-center w-1/3">
-                            <div class="border-b-2 border-pink-200 w-full mb-2"></div>
-                            <p class="text-xs text-pink-400 font-bold">Seller Signature / ហត្ថលេខាអ្នកលក់</p>
-                        </div>
-                        <div class="text-right text-xs text-gray-400">
-                            <p>Thank you!</p>
-                            <p class="text-pink-300">សូមអរគុណ!</p>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
+      <div class="mb-6">
+        <h3 class="text-xs font-bold tracking-wider text-slate-500 uppercase mb-2">Current items</h3>
+        <div id="itemsList" class="space-y-2">
+          <p class="text-sm text-slate-400 italic">No items yet.</p>
         </div>
-    </div>
+      </div>
 
-    <script>
-        // --- 1. CONFIG & STATE ---
-        const SECRET_PIN = "4321"; // User's PIN
-        let items = [];
+      <button onclick="downloadImage()"
+        class="w-full rounded-2xl bg-slate-900 py-3 font-bold text-white shadow hover:bg-slate-950">
+        Download Image
+      </button>
+      <p class="mt-2 text-center text-xs text-slate-400">By Sok Chanmony</p>
+    </aside>
 
-        // --- 2. LOGIN LOGIC ---
-        function checkLogin() {
-            const input = document.getElementById('pin-input').value;
-            if(input === SECRET_PIN) {
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('app-content').classList.remove('hidden');
-                
-                // Set Default Date
-                document.getElementById('invoice-date').valueAsDate = new Date();
-                updatePreview();
-            } else {
-                document.getElementById('error-msg').classList.remove('hidden');
-            }
+    <!-- RIGHT PREVIEW -->
+    <main class="flex-1 p-4 lg:p-10 bg-rose-100/60 overflow-y-auto">
+      <div class="previewWrap mx-auto max-w-fit shadow-2xl rounded-2xl overflow-hidden bg-white">
+        <div id="invoice" class="paper interactive">
+
+          <!-- Top bar -->
+          <div class="absolute left-0 top-0 h-2 w-full bg-rose-600"></div>
+
+          <!-- Header -->
+          <div class="mt-4 flex items-start justify-between gap-8">
+            <div class="min-w-0">
+              <div class="flex items-center gap-4">
+                <!-- Clean logo block (fixed height, no weird scaling) -->
+                <div class="h-14 w-40 rounded-xl border border-rose-100 bg-rose-50 overflow-hidden flex items-center justify-center">
+                  <img id="logoView" class="max-h-14 max-w-40 object-contain hidden" alt="Logo" />
+                  <span id="logoFallback" class="text-xs text-slate-400">LOGO</span>
+                </div>
+
+                <div class="min-w-0">
+                  <div id="vShopName" class="text-3xl font-extrabold tracking-tight text-slate-900 leading-none truncate">
+                    Cushion Skin
+                  </div>
+                  <div id="vShopContact" class="mt-2 text-sm text-slate-500">
+                    Tel: 012 345 678 | Phnom Penh
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="text-right flex flex-col items-end gap-2">
+              <!-- FIXED HEIGHT badge = always centered -->
+              <div class="h-12 px-8 rounded-full bg-rose-600 text-white inline-flex items-center justify-center shadow">
+                <span class="text-2xl font-extrabold tracking-widest leading-none">INVOICE</span>
+              </div>
+              <div class="text-sm font-bold text-rose-600">វិក្កយបត្រ</div>
+            </div>
+          </div>
+
+          <!-- Divider -->
+          <div class="mt-8 h-px w-full bg-rose-100"></div>
+
+          <!-- Bill to + meta -->
+          <div class="mt-8 grid grid-cols-2 gap-6">
+            <div class="rounded-2xl border border-rose-100 bg-rose-50 p-5">
+              <div class="text-xs font-bold tracking-wider text-rose-700 uppercase">
+                Bill To <span class="font-normal text-rose-500">/ អតិថិជន</span>
+              </div>
+              <div id="vCustomer" class="mt-3 text-xl font-bold text-slate-900 min-h-[28px]">
+                -
+              </div>
+            </div>
+
+            <div class="flex justify-end">
+              <div class="w-full max-w-sm space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-xs font-bold tracking-wider text-slate-500 uppercase whitespace-nowrap">
+                    Date <span class="font-normal text-rose-500">/ កាលបរិច្ឆេទ</span>
+                  </div>
+                  <div id="vDate" class="text-sm font-bold text-slate-800 whitespace-nowrap">
+                    -
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-between gap-3">
+                  <div class="text-xs font-bold tracking-wider text-slate-500 uppercase whitespace-nowrap">
+                    No <span class="font-normal text-rose-500">/ លេខ</span>
+                  </div>
+                  <!-- FIXED HEIGHT pill = always centered -->
+                  <div class="h-10 px-4 rounded-xl bg-rose-100 text-rose-700 inline-flex items-center justify-center">
+                    <span id="vNo" class="font-extrabold whitespace-nowrap">INV-001</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div class="mt-10 rounded-2xl border border-rose-100 overflow-hidden">
+            <div class="bg-rose-50 px-4 py-3 grid grid-cols-[60px,1fr,110px,140px,140px] gap-2 text-xs font-bold text-slate-700">
+              <div>#</div>
+              <div>Description <span class="font-normal text-rose-500">/ បរិយាយ</span></div>
+              <div class="text-center">Qty <span class="font-normal text-rose-500">/ ចំនួន</span></div>
+              <div class="text-right">Price <span class="font-normal text-rose-500">/ តម្លៃ</span></div>
+              <div class="text-right">Total <span class="font-normal text-rose-500">/ សរុប</span></div>
+            </div>
+
+            <div id="rows" class="divide-y divide-rose-100">
+              <div class="px-4 py-10 text-center text-slate-400 italic">No items added…</div>
+            </div>
+          </div>
+
+          <!-- Totals -->
+          <div class="mt-8 flex justify-end">
+            <div class="w-full max-w-sm flex items-center justify-between">
+              <div class="text-sm font-bold text-slate-600">
+                TOTAL <span class="text-rose-500 font-normal">/ សរុប</span>
+              </div>
+
+              <!-- FIXED HEIGHT pill -->
+              <div class="h-12 px-6 rounded-2xl bg-rose-600 text-white inline-flex items-center justify-center shadow">
+                <span id="vTotal" class="text-xl font-extrabold leading-none">$0.00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="absolute left-14 right-14 bottom-12 flex items-end justify-between">
+            <div class="w-[260px]">
+              <div class="h-px bg-rose-200"></div>
+              <div class="mt-2 text-xs font-bold text-slate-600">
+                Seller Signature <span class="font-normal text-rose-500">/ ហត្ថលេខាអ្នកលក់</span>
+              </div>
+            </div>
+            <div class="text-right text-xs text-slate-400">
+              <div class="font-bold text-slate-500">Thank you!</div>
+              <div class="text-rose-500">សូមអរគុណ!</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ===== Config =====
+    const SECRET_PIN = "4321";
+    const EXPORT_SCALE = 2; // safe for iPhone/Android
+    const LOGO_EXPORT_MODE = "jpeg"; // "jpeg" kills moire best, "png" keeps sharp edges
+
+    let items = [];
+    let logoExportDataUrl = ""; // preprocessed logo for stable export
+
+    // ===== Login =====
+    function checkLogin() {
+      const val = document.getElementById("pin").value;
+      if (val === SECRET_PIN) {
+        document.getElementById("login").classList.add("hidden");
+        document.getElementById("app").classList.remove("hidden");
+        document.getElementById("invDate").valueAsDate = new Date();
+        updatePreview();
+        renderItems();
+      } else {
+        document.getElementById("pinErr").classList.remove("hidden");
+      }
+    }
+
+    // ===== Helpers =====
+    function fmtMoney(n) {
+      const num = Number(n || 0);
+      return "$" + num.toFixed(2);
+    }
+
+    function setText(id, v) {
+      document.getElementById(id).innerText = v;
+    }
+
+    // ===== Preview update =====
+    function updatePreview() {
+      setText("vShopName", document.getElementById("shopName").value || "Shop Name");
+      setText("vShopContact", document.getElementById("shopContact").value || "");
+      setText("vCustomer", document.getElementById("customer").value || "-");
+      setText("vNo", document.getElementById("invNo").value || "-");
+
+      const d = document.getElementById("invDate").value;
+      setText("vDate", d ? new Date(d).toLocaleDateString("en-GB") : "-");
+    }
+
+    // ===== Logo processing =====
+    function fileToDataURL(file) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+    }
+
+    function dataURLToImage(url) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
+
+    async function preprocessLogo(file) {
+      // The logo box in invoice is h-14 => 56px max height visible.
+      // We export at EXPORT_SCALE, so prepare logo at 56*EXPORT_SCALE.
+      const targetH = 56 * EXPORT_SCALE;
+
+      const url = await fileToDataURL(file);
+      const img = await dataURLToImage(url);
+
+      const scale = targetH / img.naturalHeight;
+      const targetW = Math.max(1, Math.round(img.naturalWidth * scale));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = targetW;
+      canvas.height = targetH;
+
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
+      // Tiny blur kills "scratch/moire" on textured logos (especially iOS)
+      // If you want zero blur, set to "blur(0px)"
+      ctx.filter = "blur(0.35px)";
+
+      ctx.clearRect(0, 0, targetW, targetH);
+      ctx.drawImage(img, 0, 0, targetW, targetH);
+
+      // Export logo to JPEG to reduce moire lines (best for textured backgrounds)
+      if (LOGO_EXPORT_MODE === "png") {
+        return canvas.toDataURL("image/png");
+      }
+      return canvas.toDataURL("image/jpeg", 0.95);
+    }
+
+    document.getElementById("logoInput").addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      try {
+        logoExportDataUrl = await preprocessLogo(file);
+
+        // Show preview
+        const logoView = document.getElementById("logoView");
+        const fallback = document.getElementById("logoFallback");
+        logoView.src = logoExportDataUrl;
+        logoView.classList.remove("hidden");
+        fallback.classList.add("hidden");
+      } catch (err) {
+        alert("Logo error: " + err);
+        console.error(err);
+      }
+    });
+
+    // ===== Items =====
+    function addItem() {
+      const desc = (document.getElementById("itemDesc").value || "").trim();
+      const qty = parseFloat(document.getElementById("itemQty").value);
+      const price = parseFloat(document.getElementById("itemPrice").value);
+
+      if (!desc || isNaN(qty) || isNaN(price)) {
+        alert("Please fill Description, Qty, and Price.");
+        return;
+      }
+
+      items.push({ desc, qty, price });
+
+      document.getElementById("itemDesc").value = "";
+      document.getElementById("itemQty").value = "";
+      document.getElementById("itemPrice").value = "";
+
+      renderItems();
+    }
+
+    function removeItem(i) {
+      items.splice(i, 1);
+      renderItems();
+    }
+
+    function renderItems() {
+      const rows = document.getElementById("rows");
+      const list = document.getElementById("itemsList");
+
+      rows.innerHTML = "";
+      list.innerHTML = "";
+
+      let total = 0;
+
+      if (items.length === 0) {
+        rows.innerHTML = `<div class="px-4 py-10 text-center text-slate-400 italic">No items added…</div>`;
+        list.innerHTML = `<p class="text-sm text-slate-400 italic">No items yet.</p>`;
+        setText("vTotal", "$0.00");
+        return;
+      }
+
+      items.forEach((it, idx) => {
+        const line = it.qty * it.price;
+        total += line;
+
+        // invoice rows
+        const row = document.createElement("div");
+        row.className = "px-4 py-3 grid grid-cols-[60px,1fr,110px,140px,140px] gap-2 text-sm text-slate-700";
+        row.innerHTML = `
+          <div class="text-slate-500">${idx + 1}</div>
+          <div class="font-semibold">${escapeHtml(it.desc)}</div>
+          <div class="text-center text-slate-600">${it.qty}</div>
+          <div class="text-right text-slate-600">${fmtMoney(it.price)}</div>
+          <div class="text-right font-extrabold text-rose-700">${fmtMoney(line)}</div>
+        `;
+        rows.appendChild(row);
+
+        // control list
+        const c = document.createElement("div");
+        c.className = "flex items-center justify-between rounded-2xl border border-rose-100 bg-white p-3 shadow-sm";
+        c.innerHTML = `
+          <div>
+            <div class="font-bold text-slate-800 text-sm">${escapeHtml(it.desc)}</div>
+            <div class="text-xs text-slate-500">${it.qty} × ${fmtMoney(it.price)}</div>
+          </div>
+          <button class="rounded-xl bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100"
+            onclick="removeItem(${idx})">Remove</button>
+        `;
+        list.appendChild(c);
+      });
+
+      setText("vTotal", fmtMoney(total));
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    // ===== Export =====
+    function raf2() {
+      return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    }
+
+    async function ensureFonts() {
+      try {
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.load('16px "Battambang"');
+          await document.fonts.load('700 16px "Battambang"');
+          await document.fonts.ready;
         }
+      } catch (_) {}
+    }
 
-        // --- 3. PREVIEW UPDATER ---
-        function updatePreview() {
-            setText('display-company-en', document.getElementById('company-name').value);
-            setText('display-contact', document.getElementById('company-contact').value);
-            setText('display-customer', document.getElementById('customer-name').value || "-");
-            setText('display-no', document.getElementById('invoice-no').value);
+    async function waitForImages(root) {
+      const imgs = [...root.querySelectorAll("img")];
+      await Promise.all(imgs.map(img => {
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+        return new Promise(res => { img.onload = res; img.onerror = res; });
+      }));
+    }
 
-            // Date formatting
-            const dateVal = document.getElementById('invoice-date').value;
-            setText('display-date', dateVal ? new Date(dateVal).toLocaleDateString('en-GB') : "-");
-        }
+    async function downloadImage() {
+      const original = document.getElementById("invoice");
 
-        function setText(id, val) {
-            document.getElementById(id).innerText = val;
-        }
+      // Create invisible on-screen container (Safari-safe)
+      const container = document.createElement("div");
+      container.style.position = "fixed";
+      container.style.left = "0";
+      container.style.top = "0";
+      container.style.opacity = "0";
+      container.style.pointerEvents = "none";
+      container.style.zIndex = "-1";
+      document.body.appendChild(container);
 
-        // --- 4. LOGO HANDLING ---
-        document.getElementById('logo-upload').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = document.getElementById('display-logo');
-                    img.src = e.target.result;
-                    img.classList.remove('hidden');
-                }
-                reader.readAsDataURL(file);
-            }
+      // Clone invoice
+      const clone = original.cloneNode(true);
+      clone.classList.remove("interactive");
+
+      // lock size / avoid reflow differences
+      clone.style.width = getComputedStyle(original).width;
+      clone.style.minHeight = getComputedStyle(original).minHeight;
+      clone.style.transform = "none";
+      clone.style.webkitTransform = "none";
+      clone.style.margin = "0";
+
+      container.appendChild(clone);
+
+      try {
+        await ensureFonts();
+        await waitForImages(clone);
+        await raf2();
+
+        const canvas = await html2canvas(clone, {
+          scale: EXPORT_SCALE,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          scrollX: 0,
+          scrollY: 0,
+          width: clone.scrollWidth,
+          height: clone.scrollHeight
         });
 
-        // --- 5. ITEM LOGIC ---
-        function addItem() {
-            const desc = document.getElementById('item-desc').value;
-            const qty = parseFloat(document.getElementById('item-qty').value);
-            const price = parseFloat(document.getElementById('item-price').value);
-
-            if (!desc || isNaN(qty) || isNaN(price)) {
-                alert("Please fill in Description, Qty, and Price");
-                return;
-            }
-
-            items.push({ desc, qty, price });
-            
-            // Clear inputs
-            document.getElementById('item-desc').value = '';
-            document.getElementById('item-qty').value = '';
-            document.getElementById('item-price').value = '';
-
-            renderItems();
-        }
-
-        function removeItem(index) {
-            items.splice(index, 1);
-            renderItems();
-        }
-
-        function renderItems() {
-            const tbody = document.getElementById('invoice-items-body');
-            const controlList = document.getElementById('items-control-list');
-            
-            tbody.innerHTML = '';
-            controlList.innerHTML = '';
-            
-            let grandTotal = 0;
-
-            if (items.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-pink-300 italic">No items added...</td></tr>';
-                controlList.innerHTML = '<p class="text-sm text-gray-400 italic">No items added yet.</p>';
-            }
-
-            items.forEach((item, index) => {
-                const total = item.qty * item.price;
-                grandTotal += total;
-
-                // 1. Update Preview Table
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-pink-50 transition-colors";
-                tr.innerHTML = `
-                    <td class="py-3 px-3 text-left text-gray-500 border-b border-gray-100">${index + 1}</td>
-                    <td class="py-3 px-3 text-left text-gray-700 font-medium border-b border-gray-100">${item.desc}</td>
-                    <td class="py-3 px-3 text-center text-gray-500 border-b border-gray-100">${item.qty}</td>
-                    <td class="py-3 px-3 text-right text-gray-500 border-b border-gray-100">$${item.price.toFixed(2)}</td>
-                    <td class="py-3 px-3 text-right text-pink-600 font-bold border-b border-gray-100">$${total.toFixed(2)}</td>
-                `;
-                tbody.appendChild(tr);
-
-                // 2. Update Control List (Mobile friendly list)
-                const controlItem = document.createElement('div');
-                controlItem.className = "flex justify-between items-center bg-white p-3 rounded-xl border border-pink-100 shadow-sm";
-                controlItem.innerHTML = `
-                    <div class="text-sm">
-                        <div class="font-bold text-gray-700">${item.desc}</div>
-                        <div class="text-pink-400 text-xs">${item.qty} x $${item.price.toFixed(2)}</div>
-                    </div>
-                    <button onclick="removeItem(${index})" class="text-red-400 hover:text-red-600 text-xs font-bold px-3 py-1 bg-red-50 rounded-lg">Remove</button>
-                `;
-                controlList.appendChild(controlItem);
-            });
-
-            document.getElementById('display-grand-total').innerText = '$' + grandTotal.toFixed(2);
-        }
-
-        // --- 6. "CLONE & CAPTURE" EXPORT LOGIC (FIXED) ---
-        function downloadImage() {
-            const originalInvoice = document.getElementById('invoice-preview');
-
-            // 1. Create a container to hold the clone off-screen
-            // We use 'fixed' positioning to ensure it's not affected by the mobile scrolling div
-            const container = document.createElement('div');
-            container.style.position = 'fixed';
-            container.style.top = '-10000px'; 
-            container.style.left = '0';
-            container.style.zIndex = '-1';
-            document.body.appendChild(container);
-
-            // 2. Clone the invoice
-            const clone = originalInvoice.cloneNode(true);
-            
-            // 3. FORCE DESKTOP STYLES ON THE CLONE
-            // Remove mobile scaling, set fixed width to A4 size
-            clone.style.transform = 'none';
-            clone.style.margin = '0';
-            clone.style.width = '210mm';
-            clone.style.height = 'auto';
-            clone.style.minHeight = '297mm';
-            
-            container.appendChild(clone);
-
-            // 4. Capture the clone
-            // We use a timeout to let the DOM render the clone
-            setTimeout(() => {
-                html2canvas(clone, {
-                    scale: 2, // High resolution
-                    useCORS: true,
-                    windowWidth: 210 * 3.78 + 100, // Ensure window is wide enough for A4 (mm to px approx)
-                    backgroundColor: "#ffffff"
-                }).then(canvas => {
-                    const link = document.createElement('a');
-                    link.download = `Invoice-${document.getElementById('invoice-no').value}.png`;
-                    link.href = canvas.toDataURL("image/png");
-                    link.click();
-                    
-                    // Cleanup
-                    document.body.removeChild(container);
-                }).catch(err => {
-                    alert("Error: " + err);
-                    document.body.removeChild(container);
-                });
-            }, 100);
-        }
-    </script>
+        const a = document.createElement("a");
+        a.download = `Invoice-${document.getElementById("invNo").value || "INV"}.png`;
+        a.href = canvas.toDataURL("image/png");
+        a.click();
+      } catch (e) {
+        alert("Export error: " + e);
+        console.error(e);
+      } finally {
+        document.body.removeChild(container);
+      }
+    }
+  </script>
 </body>
 </html>
