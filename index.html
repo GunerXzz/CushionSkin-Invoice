@@ -32,7 +32,6 @@
             color: #374151; /* Gray-700 text */
         }
 
-        
         .cute-table th {
             font-weight: 700;
             color: #be185d; 
@@ -47,7 +46,7 @@
             border-bottom-right-radius: 10px;
         }
 
-        /* Mobile Responsive Scaling for the Preview */
+        /* Mobile Responsive Scaling for the Preview UI ONLY */
         .preview-container {
             overflow: auto;
             border: 1px solid #fbcfe8; 
@@ -55,7 +54,7 @@
             padding: 10px;
         }
 
-        /* On mobile screen */
+        /* On mobile screen, we scale visually, but this won't affect the download anymore */
         @media (max-width: 800px) {
             #invoice-preview {
                 transform-origin: top left;
@@ -92,10 +91,10 @@
                 <p class="text-xs text-pink-400">Customize your invoice below.</p>
             </div>
 
-            <!-- Company Info (You usually set this once) -->
+            <!-- Company Info -->
             <div class="space-y-3 mb-6">
                 <h3 class="font-bold text-sm text-pink-500 uppercase tracking-wider">My Shop</h3>
-                <input type="file" id="logo-upload" accept="image/*" class="block w-full text-sm text-pink-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100"/>
+                <input type="file" id="logo-upload" accept="image/*" class="block w-full text-sm text-pink-500 file:mr-4 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100"/>
                 <input type="text" id="company-name" placeholder="Shop Name" class="w-full border-2 border-pink-100 p-2 rounded-lg focus:border-pink-400 outline-none" oninput="updatePreview()" value="My Shop">
                 <input type="text" id="company-contact" placeholder="Address / Phone" class="w-full border-2 border-pink-100 p-2 rounded-lg focus:border-pink-400 outline-none" oninput="updatePreview()" value="Tel: 012 345 678 | Phnom Penh">
             </div>
@@ -123,7 +122,6 @@
             <div class="mb-6">
                 <h3 class="font-bold text-sm text-gray-400 mb-2">Current Items</h3>
                 <div id="items-control-list" class="space-y-2">
-                    <!-- JS will populate this -->
                     <p class="text-sm text-gray-400 italic">No items added yet.</p>
                 </div>
             </div>
@@ -248,7 +246,7 @@
 
     <script>
         // --- 1. CONFIG & STATE ---
-        const SECRET_PIN = "4321"; // Simple Security
+        const SECRET_PIN = "4321"; // User's PIN
         let items = [];
 
         // --- 2. LOGIN LOGIC ---
@@ -267,11 +265,8 @@
         }
 
         // --- 3. PREVIEW UPDATER ---
-        // Syncs the input fields with the Preview HTML
         function updatePreview() {
-            // Text Inputs
             setText('display-company-en', document.getElementById('company-name').value);
-            // Removed Khmer Name Update
             setText('display-contact', document.getElementById('company-contact').value);
             setText('display-customer', document.getElementById('customer-name').value || "-");
             setText('display-no', document.getElementById('invoice-no').value);
@@ -326,7 +321,6 @@
         }
 
         function renderItems() {
-            // Render Preview Table
             const tbody = document.getElementById('invoice-items-body');
             const controlList = document.getElementById('items-control-list');
             
@@ -346,7 +340,6 @@
 
                 // 1. Update Preview Table
                 const tr = document.createElement('tr');
-                // Added hover effect for cute interaction
                 tr.className = "hover:bg-pink-50 transition-colors";
                 tr.innerHTML = `
                     <td class="py-3 px-3 text-left text-gray-500 border-b border-gray-100">${index + 1}</td>
@@ -357,7 +350,7 @@
                 `;
                 tbody.appendChild(tr);
 
-                // 2. Update Control List (Mobile friendly list with delete button)
+                // 2. Update Control List (Mobile friendly list)
                 const controlItem = document.createElement('div');
                 controlItem.className = "flex justify-between items-center bg-white p-3 rounded-xl border border-pink-100 shadow-sm";
                 controlItem.innerHTML = `
@@ -373,24 +366,53 @@
             document.getElementById('display-grand-total').innerText = '$' + grandTotal.toFixed(2);
         }
 
-        // --- 6. EXPORT LOGIC ---
+        // --- 6. "CLONE & CAPTURE" EXPORT LOGIC (FIXED) ---
         function downloadImage() {
-            const invoice = document.getElementById('invoice-preview');
-            
-            // Temporary fix to ensure high quality scale during capture
-            // We scroll to top to prevent cut-offs
-            window.scrollTo(0,0);
+            const originalInvoice = document.getElementById('invoice-preview');
 
-            html2canvas(invoice, {
-                scale: 2, // 2x scale for crisp text
-                useCORS: true, // helps with some external images
-                backgroundColor: "#ffffff"
-            }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = `Invoice-${document.getElementById('invoice-no').value}.png`;
-                link.href = canvas.toDataURL("image/png");
-                link.click();
-            });
+            // 1. Create a container to hold the clone off-screen
+            // We use 'fixed' positioning to ensure it's not affected by the mobile scrolling div
+            const container = document.createElement('div');
+            container.style.position = 'fixed';
+            container.style.top = '-10000px'; 
+            container.style.left = '0';
+            container.style.zIndex = '-1';
+            document.body.appendChild(container);
+
+            // 2. Clone the invoice
+            const clone = originalInvoice.cloneNode(true);
+            
+            // 3. FORCE DESKTOP STYLES ON THE CLONE
+            // Remove mobile scaling, set fixed width to A4 size
+            clone.style.transform = 'none';
+            clone.style.margin = '0';
+            clone.style.width = '210mm';
+            clone.style.height = 'auto';
+            clone.style.minHeight = '297mm';
+            
+            container.appendChild(clone);
+
+            // 4. Capture the clone
+            // We use a timeout to let the DOM render the clone
+            setTimeout(() => {
+                html2canvas(clone, {
+                    scale: 2, // High resolution
+                    useCORS: true,
+                    windowWidth: 210 * 3.78 + 100, // Ensure window is wide enough for A4 (mm to px approx)
+                    backgroundColor: "#ffffff"
+                }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `Invoice-${document.getElementById('invoice-no').value}.png`;
+                    link.href = canvas.toDataURL("image/png");
+                    link.click();
+                    
+                    // Cleanup
+                    document.body.removeChild(container);
+                }).catch(err => {
+                    alert("Error: " + err);
+                    document.body.removeChild(container);
+                });
+            }, 100);
         }
     </script>
 </body>
