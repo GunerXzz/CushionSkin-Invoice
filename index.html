@@ -11,6 +11,9 @@
   <!-- html2canvas -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
+  <!-- jsPDF (PDF export) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
   <!-- Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,7 +22,6 @@
   <style>
     body { font-family: "Battambang", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
 
-    /* A4 in PX (stable for html2canvas/iOS Safari) */
     :root{
       --a4w: 794px;
       --a4h: 1123px;
@@ -27,6 +29,8 @@
       --accent: #e11d48; /* rose-600 */
     }
 
+    /* ✅ IMPORTANT FIX:
+       Do NOT use !important here, or JS preview scaling won't work on mobile. */
     .paper {
       width: var(--a4w);
       min-height: var(--a4h);
@@ -34,31 +38,28 @@
       padding: var(--pad);
       position: relative;
       box-sizing: border-box;
+      transform: none; /* <-- no !important */
+    }
+
+    /* ✅ Export clone only: force no transform (safe for html2canvas) */
+    .paper[data-export="1"] {
       transform: none !important;
     }
 
-    /* Mobile preview scaling only */
-    @media (max-width: 900px) {
-      .paper.interactive {
-        transform-origin: top left;
-        transform: scale(0.50) !important;
-        margin-bottom: -520px;
-      }
-      .previewWrap {
-        height: 560px;
-        overflow: hidden;
-        border-radius: 16px;
-      }
-    }
-
-    /* Export-only: add tiny extra top padding to avoid font ascender clipping */
+    /* Export-only: prevent ascender clipping */
     [data-export="1"] .export-safe-top { padding-top: 6px !important; }
 
-    /* Make text rendering a bit more consistent */
     .crisp {
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       text-rendering: geometricPrecision;
+    }
+
+    /* The stage that holds the scaled invoice */
+    #previewStage {
+      position: relative;
+      overflow: hidden;
+      background: #fff;
     }
   </style>
 </head>
@@ -66,23 +67,17 @@
 <body class="bg-rose-50">
 
   <!-- LOGIN -->
-  <div id="login" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rose-50">
-    <div class="w-full max-w-sm rounded-2xl bg-white shadow-xl border border-rose-100 p-7 text-center">
-      <div class="mx-auto mb-3 h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 font-bold">
-        IM
-      </div>
-      <h1 class="text-2xl font-bold text-slate-800">Invoice Maker</h1>
-      <p class="mt-1 text-sm text-slate-500">Enter PIN to continue</p>
-
-      <input id="pin" type="password" placeholder="PIN"
-        class="mt-5 w-full rounded-xl border-2 border-rose-100 px-4 py-3 text-center text-xl outline-none focus:border-rose-400" />
-
+  <div id="login" class="fixed inset-0 bg-rose-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center border border-rose-100">
+      <h2 class="text-2xl font-bold mb-2 text-slate-800">Invoice Maker</h2>
+      <p class="text-slate-500 mb-6 text-sm">Please enter PIN to access.</p>
+      <input type="password" id="pin" placeholder="PIN"
+        class="w-full border-2 border-rose-100 rounded-xl p-3 text-center text-xl mb-4 focus:border-rose-400 focus:outline-none" />
       <button onclick="checkLogin()"
-        class="mt-4 w-full rounded-xl bg-rose-600 py-3 font-bold text-white shadow hover:bg-rose-700">
-        Login
+        class="w-full bg-rose-600 text-white font-bold py-3 rounded-xl hover:bg-rose-700 transition shadow-md">
+        LOGIN
       </button>
-
-      <p id="pinErr" class="mt-3 text-sm text-red-500 hidden">Wrong PIN</p>
+      <p id="pinErr" class="text-red-500 mt-2 text-sm hidden">Incorrect PIN</p>
     </div>
   </div>
 
@@ -91,7 +86,7 @@
 
     <!-- LEFT PANEL -->
     <aside class="w-full lg:w-[380px] bg-white border-r border-rose-100 p-6 overflow-y-auto">
-      <div class="mb-6">
+      <div class="mb-6 border-b border-rose-100 pb-4">
         <h2 class="text-lg font-bold text-slate-800">Settings</h2>
         <p class="text-xs text-slate-500">Invoice Maker</p>
       </div>
@@ -149,117 +144,111 @@
         </div>
       </div>
 
-      <button onclick="downloadImage()"
-        class="w-full rounded-2xl bg-slate-900 py-3 font-bold text-white shadow hover:bg-slate-950">
-        Download Image
-      </button>
-      <p class="mt-2 text-center text-xs text-slate-400">By Sok Chanmony</p>
+      <div class="space-y-2">
+        <button onclick="downloadImage()"
+          class="w-full rounded-2xl bg-slate-900 py-3 font-bold text-white shadow hover:bg-slate-950">
+          Download Image
+        </button>
+
+        <button onclick="viewPdf()"
+          class="w-full rounded-2xl bg-white py-3 font-bold text-slate-900 border border-slate-200 shadow hover:bg-slate-50">
+          View PDF
+        </button>
+
+        <button onclick="downloadPdf()"
+          class="w-full rounded-2xl bg-rose-600 py-3 font-bold text-white shadow hover:bg-rose-700">
+          Download PDF
+        </button>
+      </div>
+
+      <p class="mt-3 text-center text-xs text-slate-400">By Sok Chanmony</p>
     </aside>
 
     <!-- RIGHT PREVIEW -->
     <main class="flex-1 p-4 lg:p-10 bg-rose-100/60 overflow-y-auto">
-      <div class="previewWrap mx-auto max-w-fit shadow-2xl rounded-2xl overflow-hidden bg-white">
-        <div id="invoice" class="paper interactive crisp">
+      <div class="mx-auto w-full lg:w-auto lg:max-w-fit">
+        <div id="previewWrap"
+             class="w-full lg:w-auto shadow-2xl rounded-2xl overflow-hidden bg-white border border-rose-100">
+          <div id="previewStage" class="mx-auto">
+            <div id="invoice" class="paper crisp">
 
-          <!-- Accent line -->
-          <div class="absolute left-0 top-0 h-2 w-full" style="background: var(--accent);"></div>
+              <div class="absolute left-0 top-0 h-2 w-full" style="background: var(--accent);"></div>
 
-          <!-- Header (no pills) -->
-          <div class="mt-6 flex items-start justify-between gap-8">
-            <div class="min-w-0 export-safe-top">
-              <div id="vShopName"
-                   class="text-4xl font-extrabold tracking-tight text-slate-900 leading-[1.15]">
-                Cushion Skin
-              </div>
-              <div id="vShopContact" class="mt-2 text-sm text-slate-500">
-                Tel: 093 838 800 | Phnom Penh
-              </div>
-
-              <!-- small accent underline -->
-              <div class="mt-4 h-[3px] w-24 rounded-full" style="background: var(--accent);"></div>
-            </div>
-
-            <div class="text-right">
-              <div class="export-safe-top">
-                <div class="text-3xl font-extrabold tracking-[0.2em] text-slate-900 leading-[1.1]">
-                  INVOICE
+              <div class="mt-6 flex items-start justify-between gap-8">
+                <div class="min-w-0 export-safe-top">
+                  <div id="vShopName" class="text-4xl font-extrabold tracking-tight text-slate-900 leading-[1.15]">
+                    Cushion Skin
+                  </div>
+                  <div id="vShopContact" class="mt-2 text-sm text-slate-500">
+                    Tel: 093 838 800 | Phnom Penh
+                  </div>
+                  <div class="mt-4 h-[3px] w-24 rounded-full" style="background: var(--accent);"></div>
                 </div>
-                <div class="mt-2 text-sm font-bold text-slate-600">
-                  វិក្កយបត្រ
+
+                <div class="text-right">
+                  <div class="export-safe-top">
+                    <div class="text-3xl font-extrabold tracking-[0.2em] text-slate-900 leading-[1.1]">INVOICE</div>
+                    <div class="mt-2 text-sm font-bold text-slate-600">វិក្កយបត្រ</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <!-- Info row -->
-          <div class="mt-10 grid grid-cols-2 gap-6">
-            <div class="rounded-2xl border border-slate-200 p-5">
-              <div class="text-xs font-bold tracking-wider text-slate-500 uppercase">
-                Bill To <span class="font-normal text-slate-400">/ អតិថិជន</span>
-              </div>
-              <div id="vCustomer" class="mt-3 text-xl font-bold text-slate-900 min-h-[28px]">
-                -
-              </div>
-            </div>
-
-            <div class="rounded-2xl border border-slate-200 p-5">
-              <div class="text-xs font-bold tracking-wider text-slate-500 uppercase">
-                Date <span class="font-normal text-slate-400">/ កាលបរិច្ឆេទ</span>
-              </div>
-              <div id="vDate" class="mt-3 text-xl font-bold text-slate-900 min-h-[28px]">
-                -
-              </div>
-            </div>
-          </div>
-
-          <!-- Items table (simple, export-safe) -->
-          <div class="mt-10 rounded-2xl border border-slate-200 overflow-hidden">
-            <div class="bg-slate-50 px-4 py-3 grid grid-cols-[60px,1fr,110px,140px,140px] gap-2 text-xs font-bold text-slate-700">
-              <div>#</div>
-              <div>Description <span class="font-normal text-slate-400">/ បរិយាយ</span></div>
-              <div class="text-center">Qty <span class="font-normal text-slate-400">/ ចំនួន</span></div>
-              <div class="text-right">Price <span class="font-normal text-slate-400">/ តម្លៃ</span></div>
-              <div class="text-right">Total <span class="font-normal text-slate-400">/ សរុប</span></div>
-            </div>
-
-            <div id="rows" class="divide-y divide-slate-200">
-              <div class="px-4 py-10 text-center text-slate-400 italic">No items added…</div>
-            </div>
-          </div>
-
-          <!-- Total (no pill background) -->
-          <div class="mt-10 flex justify-end">
-            <div class="w-full max-w-sm rounded-2xl border border-slate-200 p-5">
-              <div class="flex items-center justify-between">
-                <div class="text-sm font-bold text-slate-600">
-                  TOTAL <span class="text-slate-400 font-normal">/ សរុប</span>
+              <div class="mt-10 grid grid-cols-2 gap-6">
+                <div class="rounded-2xl border border-slate-200 p-5">
+                  <div class="text-xs font-bold tracking-wider text-slate-500 uppercase">
+                    Bill To <span class="font-normal text-slate-400">/ អតិថិជន</span>
+                  </div>
+                  <div id="vCustomer" class="mt-3 text-xl font-bold text-slate-900 min-h-[28px]">-</div>
                 </div>
-                <div id="vTotal" class="text-2xl font-extrabold text-slate-900 leading-[1.1]">
-                  $0.00
+
+                <div class="rounded-2xl border border-slate-200 p-5">
+                  <div class="text-xs font-bold tracking-wider text-slate-500 uppercase">
+                    Date <span class="font-normal text-slate-400">/ កាលបរិច្ឆេទ</span>
+                  </div>
+                  <div id="vDate" class="mt-3 text-xl font-bold text-slate-900 min-h-[28px]">-</div>
                 </div>
               </div>
-              <div class="mt-4 h-[2px] w-full bg-slate-100"></div>
-              <div class="mt-3 text-xs text-slate-400 text-right">
-                Thank you / សូមអរគុណ!
+
+              <div class="mt-10 rounded-2xl border border-slate-200 overflow-hidden">
+                <div class="bg-slate-50 px-4 py-3 grid grid-cols-[60px,1fr,110px,140px,140px] gap-2 text-xs font-bold text-slate-700">
+                  <div>#</div>
+                  <div>Description <span class="font-normal text-slate-400">/ បរិយាយ</span></div>
+                  <div class="text-center">Qty <span class="font-normal text-slate-400">/ ចំនួន</span></div>
+                  <div class="text-right">Price <span class="font-normal text-slate-400">/ តម្លៃ</span></div>
+                  <div class="text-right">Total <span class="font-normal text-slate-400">/ សរុប</span></div>
+                </div>
+
+                <div id="rows" class="divide-y divide-slate-200">
+                  <div class="px-4 py-10 text-center text-slate-400 italic">No items added…</div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <!-- Footer (NOT absolute to avoid export clipping) -->
-          <div class="mt-14 flex items-end justify-between">
-            <div class="w-[280px]">
-              <div class="h-px bg-slate-300"></div>
-              <div class="mt-2 text-xs font-bold text-slate-600">
-                Seller Signature <span class="font-normal text-slate-400">/ ហត្ថលេខាអ្នកលក់</span>
+              <div class="mt-10 flex justify-end">
+                <div class="w-full max-w-sm rounded-2xl border border-slate-200 p-5">
+                  <div class="flex items-center justify-between">
+                    <div class="text-sm font-bold text-slate-600">
+                      TOTAL <span class="text-slate-400 font-normal">/ សរុប</span>
+                    </div>
+                    <div id="vTotal" class="text-2xl font-extrabold text-slate-900 leading-[1.1]">$0.00</div>
+                  </div>
+                  <div class="mt-4 h-[2px] w-full bg-slate-100"></div>
+                  <div class="mt-3 text-xs text-slate-400 text-right">Thank you / សូមអរគុណ!</div>
+                </div>
               </div>
-            </div>
 
-            <div class="text-right text-xs text-slate-400">
-              Generated by Invoice Maker
-            </div>
-          </div>
+              <div class="mt-14 flex items-end justify-between">
+                <div class="w-[280px]">
+                  <div class="h-px bg-slate-300"></div>
+                  <div class="mt-2 text-xs font-bold text-slate-600">
+                    Seller Signature <span class="font-normal text-slate-400">/ ហត្ថលេខាអ្នកលក់</span>
+                  </div>
+                </div>
+                <div class="text-right text-xs text-slate-400"></div>
+              </div>
 
-        </div>
+            </div><!-- /invoice -->
+          </div><!-- /previewStage -->
+        </div><!-- /previewWrap -->
       </div>
     </main>
   </div>
@@ -267,6 +256,9 @@
   <script>
     const SECRET_PIN = "4321";
     const EXPORT_SCALE = 2;
+
+    const BASE_W = 794;
+    const BASE_H = 1123;
 
     let items = [];
 
@@ -278,29 +270,64 @@
         document.getElementById("invDate").valueAsDate = new Date();
         updatePreview();
         renderItems();
+        requestAnimationFrame(() => requestAnimationFrame(updatePreviewScale));
       } else {
         document.getElementById("pinErr").classList.remove("hidden");
       }
     }
 
-    function fmtMoney(n) {
-      const num = Number(n || 0);
-      return "$" + num.toFixed(2);
-    }
-
-    function setText(id, v) {
-      document.getElementById(id).innerText = v;
-    }
+    function setText(id, v) { document.getElementById(id).innerText = v; }
+    function fmtMoney(n) { return "$" + Number(n || 0).toFixed(2); }
 
     function updatePreview() {
       setText("vShopName", document.getElementById("shopName").value || "Shop Name");
       setText("vShopContact", document.getElementById("shopContact").value || "");
       setText("vCustomer", document.getElementById("customer").value || "-");
-
       const d = document.getElementById("invDate").value;
       setText("vDate", d ? new Date(d).toLocaleDateString("en-GB") : "-");
+      updatePreviewScale();
     }
 
+    // ✅ Mobile responsive preview scaling now works because .paper transform is not !important.
+    function updatePreviewScale() {
+      const wrap = document.getElementById("previewWrap");
+      const stage = document.getElementById("previewStage");
+      const paper = document.getElementById("invoice");
+      if (!wrap || !stage || !paper) return;
+
+      const isMobile = window.matchMedia("(max-width: 1024px)").matches;
+
+      paper.style.transformOrigin = "top left";
+
+      if (!isMobile) {
+        paper.style.transform = "scale(1)";
+        stage.style.width = BASE_W + "px";
+        stage.style.height = BASE_H + "px";
+        stage.style.overflow = "visible";
+        stage.style.margin = "0";
+        return;
+      }
+
+      const pad = 16;
+      const availW = Math.max(260, wrap.clientWidth - pad * 2);
+
+      const rect = wrap.getBoundingClientRect();
+      const availH = Math.max(320, window.innerHeight - rect.top - pad * 2);
+
+      let scale = Math.min(availW / BASE_W, availH / BASE_H, 1);
+      scale = Math.max(0.22, scale);
+
+      paper.style.transform = `scale(${scale})`;
+      stage.style.width = Math.round(BASE_W * scale) + "px";
+      stage.style.height = Math.round(BASE_H * scale) + "px";
+      stage.style.margin = "0 auto";
+      stage.style.overflow = "hidden";
+    }
+
+    window.addEventListener("resize", updatePreviewScale);
+    window.addEventListener("orientationchange", () => setTimeout(updatePreviewScale, 250));
+
+    // --- Items ---
     function addItem() {
       const desc = (document.getElementById("itemDesc").value || "").trim();
       const qty = parseFloat(document.getElementById("itemQty").value);
@@ -312,11 +339,9 @@
       }
 
       items.push({ desc, qty, price });
-
       document.getElementById("itemDesc").value = "";
       document.getElementById("itemQty").value = "";
       document.getElementById("itemPrice").value = "";
-
       renderItems();
     }
 
@@ -381,6 +406,7 @@
       setText("vTotal", fmtMoney(total));
     }
 
+    // --- Export helpers (PNG + PDF) ---
     function raf2() {
       return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     }
@@ -406,10 +432,9 @@
       return out;
     }
 
-    async function downloadImage() {
+    async function buildExportCanvas() {
       const original = document.getElementById("invoice");
 
-      // Offscreen (NOT opacity 0). Opacity 0 can cause weird render/cut in some cases.
       const container = document.createElement("div");
       container.style.position = "fixed";
       container.style.left = "0";
@@ -418,7 +443,7 @@
       container.style.zIndex = "-1";
       document.body.appendChild(container);
 
-      const pad = 10; // safety padding
+      const pad = 10;
       const frame = document.createElement("div");
       frame.style.background = "#ffffff";
       frame.style.padding = pad + "px";
@@ -427,23 +452,23 @@
       container.appendChild(frame);
 
       const clone = original.cloneNode(true);
-      clone.classList.remove("interactive");
-      clone.setAttribute("data-export", "1"); // enable export-only top padding
+      clone.setAttribute("data-export", "1");
 
-      // lock size
-      clone.style.width = getComputedStyle(original).width;
-      clone.style.minHeight = getComputedStyle(original).minHeight;
-      clone.style.transform = "none";
-      clone.style.webkitTransform = "none";
+      // Force export size + transform none (with important)
+      clone.style.width = BASE_W + "px";
+      clone.style.minHeight = BASE_H + "px";
       clone.style.margin = "0";
       clone.style.boxSizing = "border-box";
+      clone.style.transformOrigin = "top left";
+      clone.style.setProperty("transform", "none", "important");
+      clone.style.setProperty("-webkit-transform", "none", "important");
 
       frame.appendChild(clone);
 
       try {
         await ensureFonts();
         await raf2();
-        await new Promise(r => setTimeout(r, 80)); // small settle time
+        await new Promise(r => setTimeout(r, 80));
 
         const canvas = await html2canvas(frame, {
           scale: EXPORT_SCALE,
@@ -455,21 +480,63 @@
           height: frame.scrollHeight,
         });
 
-        // Compute actual pad scaling (fixes wrong crop on different DPR/devices)
         const scaleX = canvas.width / frame.scrollWidth;
         const padScaled = Math.round(pad * scaleX);
+        return cropCanvas(canvas, padScaled);
+      } finally {
+        document.body.removeChild(container);
+      }
+    }
 
-        const cropped = cropCanvas(canvas, padScaled);
-
+    async function downloadImage() {
+      try {
+        const canvas = await buildExportCanvas();
         const a = document.createElement("a");
         a.download = "Invoice.png";
-        a.href = cropped.toDataURL("image/png");
+        a.href = canvas.toDataURL("image/png");
         a.click();
       } catch (e) {
         alert("Export error: " + e);
         console.error(e);
-      } finally {
-        document.body.removeChild(container);
+      }
+    }
+
+    async function makePdfBlob() {
+      const canvas = await buildExportCanvas();
+      const imgData = canvas.toDataURL("image/png");
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      pdf.addImage(imgData, "PNG", 0, 0, 210, 297);
+      return pdf.output("blob");
+    }
+
+    async function viewPdf() {
+      try {
+        const blob = await makePdfBlob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } catch (e) {
+        alert("PDF error: " + e);
+        console.error(e);
+      }
+    }
+
+    async function downloadPdf() {
+      try {
+        const blob = await makePdfBlob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "Invoice.pdf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } catch (e) {
+        alert("PDF error: " + e);
+        console.error(e);
       }
     }
   </script>
