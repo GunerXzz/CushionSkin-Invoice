@@ -11,7 +11,7 @@
   <!-- html2canvas -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-  <!-- Khmer-friendly font -->
+  <!-- Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Battambang:wght@400;700&display=swap" rel="stylesheet">
@@ -19,11 +19,12 @@
   <style>
     body { font-family: "Battambang", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
 
-    /* A4 in PX (stable for Safari/html2canvas) */
+    /* A4 in PX (stable for html2canvas/iOS Safari) */
     :root{
       --a4w: 794px;
       --a4h: 1123px;
       --pad: 56px;
+      --accent: #e11d48; /* rose-600 */
     }
 
     .paper {
@@ -32,6 +33,7 @@
       background: #fff;
       padding: var(--pad);
       position: relative;
+      box-sizing: border-box;
       transform: none !important;
     }
 
@@ -49,12 +51,14 @@
       }
     }
 
-    /* Make logo rendering more stable on iOS */
-    #logoView {
-      transform: translateZ(0);
-      -webkit-transform: translateZ(0);
-      backface-visibility: hidden;
-      -webkit-backface-visibility: hidden;
+    /* Export-only: add tiny extra top padding to avoid font ascender clipping */
+    [data-export="1"] .export-safe-top { padding-top: 6px !important; }
+
+    /* Make text rendering a bit more consistent */
+    .crisp {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
     }
   </style>
 </head>
@@ -65,7 +69,7 @@
   <div id="login" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rose-50">
     <div class="w-full max-w-sm rounded-2xl bg-white shadow-xl border border-rose-100 p-7 text-center">
       <div class="mx-auto mb-3 h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 font-bold">
-        CS
+        IM
       </div>
       <h1 class="text-2xl font-bold text-slate-800">Invoice Maker</h1>
       <p class="mt-1 text-sm text-slate-500">Enter PIN to continue</p>
@@ -79,7 +83,6 @@
       </button>
 
       <p id="pinErr" class="mt-3 text-sm text-red-500 hidden">Wrong PIN</p>
-      <p class="mt-4 text-xs text-slate-400">Note: PIN is not secure if this is public</p>
     </div>
   </div>
 
@@ -90,19 +93,11 @@
     <aside class="w-full lg:w-[380px] bg-white border-r border-rose-100 p-6 overflow-y-auto">
       <div class="mb-6">
         <h2 class="text-lg font-bold text-slate-800">Settings</h2>
-        <p class="text-xs text-slate-500">Clean modern invoice theme</p>
+        <p class="text-xs text-slate-500">Modern clean style (export-safe)</p>
       </div>
 
       <div class="space-y-3 mb-6">
         <h3 class="text-xs font-bold tracking-wider text-rose-700 uppercase">Shop</h3>
-
-        <label class="block">
-          <span class="text-sm text-slate-600">Logo</span>
-          <input id="logoInput" type="file" accept="image/*"
-            class="mt-2 block w-full text-sm text-rose-600
-            file:mr-4 file:rounded-full file:border-0 file:bg-rose-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-rose-700 hover:file:bg-rose-100" />
-          <p class="mt-1 text-xs text-slate-400">We auto-fix logo for export (removes scratch/moire).</p>
-        </label>
 
         <input id="shopName" value="Cushion Skin" oninput="updatePreview()"
           class="w-full rounded-xl border-2 border-rose-100 px-4 py-2.5 outline-none focus:border-rose-400"
@@ -122,10 +117,6 @@
 
         <input id="invDate" type="date" oninput="updatePreview()"
           class="w-full rounded-xl border-2 border-rose-100 px-4 py-2.5 outline-none focus:border-rose-400" />
-
-        <input id="invNo" value="INV-001" oninput="updatePreview()"
-          class="w-full rounded-xl border-2 border-rose-100 px-4 py-2.5 outline-none focus:border-rose-400"
-          placeholder="Invoice number" />
       </div>
 
       <div class="rounded-2xl border border-rose-100 bg-rose-50 p-4 mb-6">
@@ -168,119 +159,103 @@
     <!-- RIGHT PREVIEW -->
     <main class="flex-1 p-4 lg:p-10 bg-rose-100/60 overflow-y-auto">
       <div class="previewWrap mx-auto max-w-fit shadow-2xl rounded-2xl overflow-hidden bg-white">
-        <div id="invoice" class="paper interactive">
+        <div id="invoice" class="paper interactive crisp">
 
-          <!-- Top bar -->
-          <div class="absolute left-0 top-0 h-2 w-full bg-rose-600"></div>
+          <!-- Accent line -->
+          <div class="absolute left-0 top-0 h-2 w-full" style="background: var(--accent);"></div>
 
-          <!-- Header -->
-          <div class="mt-4 flex items-start justify-between gap-8">
-            <div class="min-w-0">
-              <div class="flex items-center gap-4">
-                <!-- Clean logo block (fixed height, no weird scaling) -->
-                <div class="h-14 w-40 rounded-xl border border-rose-100 bg-rose-50 overflow-hidden flex items-center justify-center">
-                  <img id="logoView" class="max-h-14 max-w-40 object-contain hidden" alt="Logo" />
-                  <span id="logoFallback" class="text-xs text-slate-400">LOGO</span>
-                </div>
-
-                <div class="min-w-0">
-                  <div id="vShopName" class="text-3xl font-extrabold tracking-tight text-slate-900 leading-none truncate">
-                    Cushion Skin
-                  </div>
-                  <div id="vShopContact" class="mt-2 text-sm text-slate-500">
-                    Tel: 012 345 678 | Phnom Penh
-                  </div>
-                </div>
+          <!-- Header (no pills) -->
+          <div class="mt-6 flex items-start justify-between gap-8">
+            <div class="min-w-0 export-safe-top">
+              <div id="vShopName"
+                   class="text-4xl font-extrabold tracking-tight text-slate-900 leading-[1.15]">
+                Cushion Skin
               </div>
+              <div id="vShopContact" class="mt-2 text-sm text-slate-500">
+                Tel: 012 345 678 | Phnom Penh
+              </div>
+
+              <!-- small accent underline -->
+              <div class="mt-4 h-[3px] w-24 rounded-full" style="background: var(--accent);"></div>
             </div>
 
-            <div class="text-right flex flex-col items-end gap-2">
-              <!-- FIXED HEIGHT badge = always centered -->
-              <div class="h-12 px-8 rounded-full bg-rose-600 text-white inline-flex items-center justify-center shadow">
-                <span class="text-2xl font-extrabold tracking-widest leading-none">INVOICE</span>
+            <div class="text-right">
+              <div class="export-safe-top">
+                <div class="text-3xl font-extrabold tracking-[0.2em] text-slate-900 leading-[1.1]">
+                  INVOICE
+                </div>
+                <div class="mt-2 text-sm font-bold text-slate-600">
+                  វិក្កយបត្រ
+                </div>
               </div>
-              <div class="text-sm font-bold text-rose-600">វិក្កយបត្រ</div>
             </div>
           </div>
 
-          <!-- Divider -->
-          <div class="mt-8 h-px w-full bg-rose-100"></div>
-
-          <!-- Bill to + meta -->
-          <div class="mt-8 grid grid-cols-2 gap-6">
-            <div class="rounded-2xl border border-rose-100 bg-rose-50 p-5">
-              <div class="text-xs font-bold tracking-wider text-rose-700 uppercase">
-                Bill To <span class="font-normal text-rose-500">/ អតិថិជន</span>
+          <!-- Info row -->
+          <div class="mt-10 grid grid-cols-2 gap-6">
+            <div class="rounded-2xl border border-slate-200 p-5">
+              <div class="text-xs font-bold tracking-wider text-slate-500 uppercase">
+                Bill To <span class="font-normal text-slate-400">/ អតិថិជន</span>
               </div>
               <div id="vCustomer" class="mt-3 text-xl font-bold text-slate-900 min-h-[28px]">
                 -
               </div>
             </div>
 
-            <div class="flex justify-end">
-              <div class="w-full max-w-sm space-y-3">
-                <div class="flex items-center justify-between gap-3">
-                  <div class="text-xs font-bold tracking-wider text-slate-500 uppercase whitespace-nowrap">
-                    Date <span class="font-normal text-rose-500">/ កាលបរិច្ឆេទ</span>
-                  </div>
-                  <div id="vDate" class="text-sm font-bold text-slate-800 whitespace-nowrap">
-                    -
-                  </div>
-                </div>
-
-                <div class="flex items-center justify-between gap-3">
-                  <div class="text-xs font-bold tracking-wider text-slate-500 uppercase whitespace-nowrap">
-                    No <span class="font-normal text-rose-500">/ លេខ</span>
-                  </div>
-                  <!-- FIXED HEIGHT pill = always centered -->
-                  <div class="h-10 px-4 rounded-xl bg-rose-100 text-rose-700 inline-flex items-center justify-center">
-                    <span id="vNo" class="font-extrabold whitespace-nowrap">INV-001</span>
-                  </div>
-                </div>
+            <div class="rounded-2xl border border-slate-200 p-5">
+              <div class="text-xs font-bold tracking-wider text-slate-500 uppercase">
+                Date <span class="font-normal text-slate-400">/ កាលបរិច្ឆេទ</span>
+              </div>
+              <div id="vDate" class="mt-3 text-xl font-bold text-slate-900 min-h-[28px]">
+                -
               </div>
             </div>
           </div>
 
-          <!-- Table -->
-          <div class="mt-10 rounded-2xl border border-rose-100 overflow-hidden">
-            <div class="bg-rose-50 px-4 py-3 grid grid-cols-[60px,1fr,110px,140px,140px] gap-2 text-xs font-bold text-slate-700">
+          <!-- Items table (simple, export-safe) -->
+          <div class="mt-10 rounded-2xl border border-slate-200 overflow-hidden">
+            <div class="bg-slate-50 px-4 py-3 grid grid-cols-[60px,1fr,110px,140px,140px] gap-2 text-xs font-bold text-slate-700">
               <div>#</div>
-              <div>Description <span class="font-normal text-rose-500">/ បរិយាយ</span></div>
-              <div class="text-center">Qty <span class="font-normal text-rose-500">/ ចំនួន</span></div>
-              <div class="text-right">Price <span class="font-normal text-rose-500">/ តម្លៃ</span></div>
-              <div class="text-right">Total <span class="font-normal text-rose-500">/ សរុប</span></div>
+              <div>Description <span class="font-normal text-slate-400">/ បរិយាយ</span></div>
+              <div class="text-center">Qty <span class="font-normal text-slate-400">/ ចំនួន</span></div>
+              <div class="text-right">Price <span class="font-normal text-slate-400">/ តម្លៃ</span></div>
+              <div class="text-right">Total <span class="font-normal text-slate-400">/ សរុប</span></div>
             </div>
 
-            <div id="rows" class="divide-y divide-rose-100">
+            <div id="rows" class="divide-y divide-slate-200">
               <div class="px-4 py-10 text-center text-slate-400 italic">No items added…</div>
             </div>
           </div>
 
-          <!-- Totals -->
-          <div class="mt-8 flex justify-end">
-            <div class="w-full max-w-sm flex items-center justify-between">
-              <div class="text-sm font-bold text-slate-600">
-                TOTAL <span class="text-rose-500 font-normal">/ សរុប</span>
+          <!-- Total (no pill background) -->
+          <div class="mt-10 flex justify-end">
+            <div class="w-full max-w-sm rounded-2xl border border-slate-200 p-5">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-bold text-slate-600">
+                  TOTAL <span class="text-slate-400 font-normal">/ សរុប</span>
+                </div>
+                <div id="vTotal" class="text-2xl font-extrabold text-slate-900 leading-[1.1]">
+                  $0.00
+                </div>
               </div>
-
-              <!-- FIXED HEIGHT pill -->
-              <div class="h-12 px-6 rounded-2xl bg-rose-600 text-white inline-flex items-center justify-center shadow">
-                <span id="vTotal" class="text-xl font-extrabold leading-none">$0.00</span>
+              <div class="mt-4 h-[2px] w-full bg-slate-100"></div>
+              <div class="mt-3 text-xs text-slate-400 text-right">
+                Thank you / សូមអរគុណ!
               </div>
             </div>
           </div>
 
-          <!-- Footer -->
-          <div class="absolute left-14 right-14 bottom-12 flex items-end justify-between">
-            <div class="w-[260px]">
-              <div class="h-px bg-rose-200"></div>
+          <!-- Footer (NOT absolute to avoid export clipping) -->
+          <div class="mt-14 flex items-end justify-between">
+            <div class="w-[280px]">
+              <div class="h-px bg-slate-300"></div>
               <div class="mt-2 text-xs font-bold text-slate-600">
-                Seller Signature <span class="font-normal text-rose-500">/ ហត្ថលេខាអ្នកលក់</span>
+                Seller Signature <span class="font-normal text-slate-400">/ ហត្ថលេខាអ្នកលក់</span>
               </div>
             </div>
+
             <div class="text-right text-xs text-slate-400">
-              <div class="font-bold text-slate-500">Thank you!</div>
-              <div class="text-rose-500">សូមអរគុណ!</div>
+              Generated by Invoice Maker
             </div>
           </div>
 
@@ -290,15 +265,11 @@
   </div>
 
   <script>
-    // ===== Config =====
     const SECRET_PIN = "4321";
-    const EXPORT_SCALE = 2; // safe for iPhone/Android
-    const LOGO_EXPORT_MODE = "jpeg"; // "jpeg" kills moire best, "png" keeps sharp edges
+    const EXPORT_SCALE = 2;
 
     let items = [];
-    let logoExportDataUrl = ""; // preprocessed logo for stable export
 
-    // ===== Login =====
     function checkLogin() {
       const val = document.getElementById("pin").value;
       if (val === SECRET_PIN) {
@@ -312,7 +283,6 @@
       }
     }
 
-    // ===== Helpers =====
     function fmtMoney(n) {
       const num = Number(n || 0);
       return "$" + num.toFixed(2);
@@ -322,89 +292,15 @@
       document.getElementById(id).innerText = v;
     }
 
-    // ===== Preview update =====
     function updatePreview() {
       setText("vShopName", document.getElementById("shopName").value || "Shop Name");
       setText("vShopContact", document.getElementById("shopContact").value || "");
       setText("vCustomer", document.getElementById("customer").value || "-");
-      setText("vNo", document.getElementById("invNo").value || "-");
 
       const d = document.getElementById("invDate").value;
       setText("vDate", d ? new Date(d).toLocaleDateString("en-GB") : "-");
     }
 
-    // ===== Logo processing =====
-    function fileToDataURL(file) {
-      return new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(r.result);
-        r.onerror = reject;
-        r.readAsDataURL(file);
-      });
-    }
-
-    function dataURLToImage(url) {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = url;
-      });
-    }
-
-    async function preprocessLogo(file) {
-      // The logo box in invoice is h-14 => 56px max height visible.
-      // We export at EXPORT_SCALE, so prepare logo at 56*EXPORT_SCALE.
-      const targetH = 56 * EXPORT_SCALE;
-
-      const url = await fileToDataURL(file);
-      const img = await dataURLToImage(url);
-
-      const scale = targetH / img.naturalHeight;
-      const targetW = Math.max(1, Math.round(img.naturalWidth * scale));
-
-      const canvas = document.createElement("canvas");
-      canvas.width = targetW;
-      canvas.height = targetH;
-
-      const ctx = canvas.getContext("2d");
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-
-      // Tiny blur kills "scratch/moire" on textured logos (especially iOS)
-      // If you want zero blur, set to "blur(0px)"
-      ctx.filter = "blur(0.35px)";
-
-      ctx.clearRect(0, 0, targetW, targetH);
-      ctx.drawImage(img, 0, 0, targetW, targetH);
-
-      // Export logo to JPEG to reduce moire lines (best for textured backgrounds)
-      if (LOGO_EXPORT_MODE === "png") {
-        return canvas.toDataURL("image/png");
-      }
-      return canvas.toDataURL("image/jpeg", 0.95);
-    }
-
-    document.getElementById("logoInput").addEventListener("change", async (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-
-      try {
-        logoExportDataUrl = await preprocessLogo(file);
-
-        // Show preview
-        const logoView = document.getElementById("logoView");
-        const fallback = document.getElementById("logoFallback");
-        logoView.src = logoExportDataUrl;
-        logoView.classList.remove("hidden");
-        fallback.classList.add("hidden");
-      } catch (err) {
-        alert("Logo error: " + err);
-        console.error(err);
-      }
-    });
-
-    // ===== Items =====
     function addItem() {
       const desc = (document.getElementById("itemDesc").value || "").trim();
       const qty = parseFloat(document.getElementById("itemQty").value);
@@ -429,6 +325,15 @@
       renderItems();
     }
 
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
     function renderItems() {
       const rows = document.getElementById("rows");
       const list = document.getElementById("itemsList");
@@ -449,7 +354,6 @@
         const line = it.qty * it.price;
         total += line;
 
-        // invoice rows
         const row = document.createElement("div");
         row.className = "px-4 py-3 grid grid-cols-[60px,1fr,110px,140px,140px] gap-2 text-sm text-slate-700";
         row.innerHTML = `
@@ -457,11 +361,10 @@
           <div class="font-semibold">${escapeHtml(it.desc)}</div>
           <div class="text-center text-slate-600">${it.qty}</div>
           <div class="text-right text-slate-600">${fmtMoney(it.price)}</div>
-          <div class="text-right font-extrabold text-rose-700">${fmtMoney(line)}</div>
+          <div class="text-right font-extrabold" style="color: var(--accent);">${fmtMoney(line)}</div>
         `;
         rows.appendChild(row);
 
-        // control list
         const c = document.createElement("div");
         c.className = "flex items-center justify-between rounded-2xl border border-rose-100 bg-white p-3 shadow-sm";
         c.innerHTML = `
@@ -478,16 +381,6 @@
       setText("vTotal", fmtMoney(total));
     }
 
-    function escapeHtml(s) {
-      return String(s)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    // ===== Export =====
     function raf2() {
       return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     }
@@ -502,58 +395,75 @@
       } catch (_) {}
     }
 
-    async function waitForImages(root) {
-      const imgs = [...root.querySelectorAll("img")];
-      await Promise.all(imgs.map(img => {
-        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-        return new Promise(res => { img.onload = res; img.onerror = res; });
-      }));
+    function cropCanvas(srcCanvas, padScaled) {
+      const w = srcCanvas.width - padScaled * 2;
+      const h = srcCanvas.height - padScaled * 2;
+      const out = document.createElement("canvas");
+      out.width = Math.max(1, w);
+      out.height = Math.max(1, h);
+      const ctx = out.getContext("2d");
+      ctx.drawImage(srcCanvas, padScaled, padScaled, w, h, 0, 0, w, h);
+      return out;
     }
 
     async function downloadImage() {
       const original = document.getElementById("invoice");
 
-      // Create invisible on-screen container (Safari-safe)
+      // Offscreen (NOT opacity 0). Opacity 0 can cause weird render/cut in some cases.
       const container = document.createElement("div");
       container.style.position = "fixed";
       container.style.left = "0";
-      container.style.top = "0";
-      container.style.opacity = "0";
-      container.style.pointerEvents = "none";
+      container.style.top = "-100000px";
+      container.style.background = "#ffffff";
       container.style.zIndex = "-1";
       document.body.appendChild(container);
 
-      // Clone invoice
+      const pad = 10; // safety padding
+      const frame = document.createElement("div");
+      frame.style.background = "#ffffff";
+      frame.style.padding = pad + "px";
+      frame.style.display = "inline-block";
+      frame.style.boxSizing = "border-box";
+      container.appendChild(frame);
+
       const clone = original.cloneNode(true);
       clone.classList.remove("interactive");
+      clone.setAttribute("data-export", "1"); // enable export-only top padding
 
-      // lock size / avoid reflow differences
+      // lock size
       clone.style.width = getComputedStyle(original).width;
       clone.style.minHeight = getComputedStyle(original).minHeight;
       clone.style.transform = "none";
       clone.style.webkitTransform = "none";
       clone.style.margin = "0";
+      clone.style.boxSizing = "border-box";
 
-      container.appendChild(clone);
+      frame.appendChild(clone);
 
       try {
         await ensureFonts();
-        await waitForImages(clone);
         await raf2();
+        await new Promise(r => setTimeout(r, 80)); // small settle time
 
-        const canvas = await html2canvas(clone, {
+        const canvas = await html2canvas(frame, {
           scale: EXPORT_SCALE,
           useCORS: true,
           backgroundColor: "#ffffff",
           scrollX: 0,
           scrollY: 0,
-          width: clone.scrollWidth,
-          height: clone.scrollHeight
+          width: frame.scrollWidth,
+          height: frame.scrollHeight,
         });
 
+        // Compute actual pad scaling (fixes wrong crop on different DPR/devices)
+        const scaleX = canvas.width / frame.scrollWidth;
+        const padScaled = Math.round(pad * scaleX);
+
+        const cropped = cropCanvas(canvas, padScaled);
+
         const a = document.createElement("a");
-        a.download = `Invoice-${document.getElementById("invNo").value || "INV"}.png`;
-        a.href = canvas.toDataURL("image/png");
+        a.download = "Invoice.png";
+        a.href = cropped.toDataURL("image/png");
         a.click();
       } catch (e) {
         alert("Export error: " + e);
